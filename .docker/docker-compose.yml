@@ -13,6 +13,9 @@ services:
       - mongodb-sharding-bashhistory:/commandhistory
     env_file:
       - ../.envs/mongo.env
+    # JupyterLab for notebooks/sandbox.ipynb when not using VS Code (see README)
+    ports:
+      - 8882:8888
     working_dir: /app
     restart: unless-stopped
     command:

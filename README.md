@@ -126,7 +126,7 @@ Es la decisión más importante de un clúster fragmentado. Una buena shard key:
 | `MongoShard1` (`shard1`) | `mongod --shardsvr --replSet shard1rs` | 27018 | 27031 | Shard 1 (primary shard de `shop`) |
 | `MongoShard2` (`shard2`) | `mongod --shardsvr --replSet shard2rs` | 27018 | 27032 | Shard 2 |
 | `MongoShardingInit` | `init.sh` | — | — | Se ejecuta una vez: inicia config server y shards, y los registra en mongos |
-| `MongoShardingLab` | Python 3.13 · pymongo · mongosh | — | — | Donde se ejecutan las lecciones |
+| `MongoShardingLab` | Python 3.13 · pymongo · mongosh · JupyterLab | 8888 | 8882 | Donde se ejecutan las lecciones y el sandbox |
 
 **Arranque:**
 
@@ -150,6 +150,7 @@ La aplicación solo conoce `mongos`: `mongodb://mongos:27017` dentro de Docker, 
 docs/architecture.drawio      # Diagrama
 src/lab/                      # Cliente, funciones para imprimir y para leer el enrutamiento
 lessons/                      # Lecciones 00-05
+notebooks/sandbox.ipynb       # Sandbox para experimentar con todo lo anterior
 ```
 
 ## 4. Puesta en marcha
@@ -224,6 +225,23 @@ docker compose -f docker-compose.yml -f sharded-cluster.yml down -v
 | `05_balancer.py` | Estado del balancer; corta (`split`) y mueve (`moveRange`) todos los chunks de Colombia a un mismo shard. | Antes, la consulta por Colombia puede ir a un shard o a dos; después, siempre va al shard destino, sin cambios en la aplicación. |
 
 Para volver al estado inicial: `python lessons/00_seed.py`.
+
+### Sandbox
+
+[`notebooks/sandbox.ipynb`](notebooks/sandbox.ipynb) reúne todo en un solo lugar para experimentar: ver a qué shards llega cada uno de tus filtros, escribir órdenes y ver en qué shard quedan, cambiar el valor de la shard key, ver cómo mongos divide tu pipeline, leer la tabla de chunks, probar shard keys distintas (hashed, por rango, creciente) en tu propia colección, mover un país de shard y ver qué consultas sobreviven a un shard apagado. Las
+celdas marcadas **Juega aquí** están hechas para cambiarlas. Necesita el seed cargado.
+
+Hay dos formas de abrirlo:
+
+- **VS Code (Dev Container)**: abre el archivo y elige el kernel de Python 3.13 del contenedor. No usa puertos.
+- **Navegador (JupyterLab)**: el contenedor publica el puerto 8882 solo para esto.
+
+  ```bash
+  docker exec -it MongoShardingLab jupyter lab --ip 0.0.0.0 --port 8888 --no-browser --notebook-dir /app
+  ```
+
+  El comando imprime una URL `http://127.0.0.1:8888/lab?token=…`: ábrela en tu equipo cambiando el puerto a
+  **8882** (`http://127.0.0.1:8882/lab?token=…`). `Ctrl+C` para cerrarlo.
 
 ## 6. Comandos útiles
 
