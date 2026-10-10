@@ -1,0 +1,24 @@
+name: mongodb-sharding
+
+services:
+
+  mongodb_lab:
+    container_name: 'MongoShardingLab'
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: img-lab
+    volumes:
+      - ..:/app
+      - mongodb-sharding-bashhistory:/commandhistory
+    env_file:
+      - ../.envs/mongo.env
+    working_dir: /app
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -c
+      - sleep infinity
+
+volumes:
+  mongodb-sharding-bashhistory:

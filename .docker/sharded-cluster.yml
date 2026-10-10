@@ -1,0 +1,90 @@
+# Sharded cluster:
+#   configsvr -> config server: stores which range of the shard key lives on which shard (port 27019, host 27030)
+#   shard1    -> shard 1: stores part of the data (port 27018, host 27031)
+#   shard2    -> shard 2: stores the other part of the data (port 27018, host 27032)
+#   mongos    -> router: the only entry point for applications (port 27017, host 27017)
+#
+# configsvr, shard1 and shard2 are published only to inspect each one from Compass with directConnection=true.
+# orphanCleanupDelaySecs=60: after a migration, the source shard deletes the moved documents after 60 s
+# (default: 1 hour), so the per-shard counts seen from Compass match quickly.
+#
+# MongoDB requires every shard and the config server to be a replica set; here each one has a single member.
+
+x-mongo: &mongo
+  image: mongo:8.2.12
+  restart: unless-stopped
+
+x-shardsvr-healthcheck: &shardsvr-healthcheck
+  test: ["CMD", "mongosh", "--port", "27018", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+  interval: 5s
+  timeout: 5s
+  retries: 30
+
+services:
+
+  configsvr:
+    <<: *mongo
+    container_name: 'MongoConfig'
+    command: mongod --configsvr --replSet configrs --port 27019 --bind_ip_all --wiredTigerCacheSizeGB 0.25
+    ports:
+      - 27030:27019
+    volumes:
+      - configsvr-data:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--port", "27019", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  shard1:
+    <<: *mongo
+    container_name: 'MongoShard1'
+    command: mongod --shardsvr --replSet shard1rs --port 27018 --bind_ip_all --wiredTigerCacheSizeGB 0.25 --setParameter orphanCleanupDelaySecs=60
+    ports:
+      - 27031:27018
+    volumes:
+      - shard1-data:/data/db
+    healthcheck: *shardsvr-healthcheck
+
+  shard2:
+    <<: *mongo
+    container_name: 'MongoShard2'
+    command: mongod --shardsvr --replSet shard2rs --port 27018 --bind_ip_all --wiredTigerCacheSizeGB 0.25 --setParameter orphanCleanupDelaySecs=60
+    ports:
+      - 27032:27018
+    volumes:
+      - shard2-data:/data/db
+    healthcheck: *shardsvr-healthcheck
+
+  mongos:
+    <<: *mongo
+    container_name: 'MongoRouter'
+    command: mongos --configdb configrs/configsvr:27019 --port 27017 --bind_ip_all
+    ports:
+      - 27017:27017
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    depends_on:
+      configsvr: { condition: service_healthy }
+
+  # One-shot job: initiates the config server and the shards, then registers the shards in mongos
+  mongo_init:
+    <<: *mongo
+    container_name: 'MongoShardingInit'
+    restart: 'no'
+    volumes:
+      - ./sharded-cluster:/sharded-cluster:ro
+    entrypoint: ["bash", "/sharded-cluster/init.sh"]
+    depends_on:
+      configsvr: { condition: service_healthy }
+      shard1: { condition: service_healthy }
+      shard2: { condition: service_healthy }
+      mongos: { condition: service_started }
+
+volumes:
+  configsvr-data:
+  shard1-data:
+  shard2-data:
